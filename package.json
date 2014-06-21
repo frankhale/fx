@@ -1,0 +1,9 @@
+{
+  "name"    : "fx",
+  "version" : "0.1.0",
+  "main"    : "main.js",
+  "dependencies": {
+    "fs-extra": "^0.8.1",
+    "marked": "^0.3.2"
+  }
+}
