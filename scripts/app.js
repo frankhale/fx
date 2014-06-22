@@ -1,3 +1,13 @@
+//
+// A port of Frehley on Node-Webkit and Clojurescript to Atom-Shell and Javascript.
+//
+// https://github.com/frankhale/Frehley
+// https://github.com/frankhale/fx
+//
+// Frank Hale <frankhale@gmail.com>
+// Date: 22 June 2014
+//
+
 var App = (function (my) {
 	var fs = require('fs');
 	var remote = require('remote');
@@ -35,7 +45,7 @@ var App = (function (my) {
 	var notificationFadeOutSpeed = 1250;
 	var configFilePath = __dirname + "/config/settings.json";
 	var aceResourcePath = __dirname + "/libs/ace-min-noconflict";
-	var newBufferName = "New.txt";
+	var newBufferName = "new.txt";
 	var editorName = "fx";
 	
 	var welcomeTitle = "Welcome to " + editorName;
@@ -228,7 +238,7 @@ var App = (function (my) {
 	};
 	
 	var fillBufferListWithNames = function() {
-		console.log("fillBufferListWithNames: editorState = " + editorState);
+		//console.log("fillBufferListWithNames: editorState = " + editorState);
 		
 		var names = _.pluck(editorState, 'fileName');
 		
@@ -254,20 +264,20 @@ var App = (function (my) {
 
 	var switchBuffer = function(buffer) {
 		//console.log("buffer.file: " + buffer.fileName);
-				
-		editor.setSession(buffer.session);
-		buffer.session.setUndoManager(buffer.undoManager);
-		setEditorTitle(buffer.fileName);
-		$bufferSwitcher.val(buffer.fileName);
+		
+		currentBuffer = buffer;
+		
+		editor.setSession(currentBuffer.session);
+		buffer.session.setUndoManager(currentBuffer.undoManager);
+		setEditorTitle(currentBuffer.fileName);
+		$bufferSwitcher.val(currentBuffer.fileName);
 
 		if(buffer.filePath !== "") {
-			setHighlighting(buffer.session, path.extname(buffer.filePath), function(m) {
+			setHighlighting(buffer.session, path.extname(currentBuffer.filePath), function(m) {
 				//console.log("file ext: " + path.extname(buffer.filePath));
 				$languageModeSwitcher.val(m);
 			});
 		}
-		
-		currentBuffer = buffer;
 	};
 	
 	var insertNewBuffer = function(file) {
@@ -348,7 +358,7 @@ var App = (function (my) {
 		var json = JSON.stringify(configFile);
 		fsExtra.mkdirsSync(path.dirname(configFilePath));
 		writeFileSync(configFilePath, json);
-	}
+	};
 	
 	var setEditorPropsFromConfig = function(config) {
 		if(config) {
@@ -457,7 +467,7 @@ var App = (function (my) {
 			//console.log("currentBuffer.fileName = " + currentBuffer.fileName);
 			//console.log("editorState.length = " + editorState.length);
 			var currIndex = _.findIndex(editorState, { fileName: currentBuffer.fileName });
-			console.log("currIndex = " + currIndex);
+			//console.log("currIndex = " + currIndex);
 			//_.forEach(editorState, function(f) {
 			//	console.log("editorState: " + f.fileName);
 			//});
@@ -526,14 +536,6 @@ var App = (function (my) {
 		}
 	};
 
-	var editorStateWithoutNewEmptyFiles = function() {
-		return _.filter(editorState, function(f) {
-			if(f.fileName.indexOf(newBufferName) == 0 && f.text !== "") {
-				return f;
-			}
-		});		
-	};
-
 	var reloadApp = function () {
 		browser.reload();
 	};
@@ -552,19 +554,19 @@ var App = (function (my) {
 				fun();
 				e.preventDefault();
 			}
-		};
+		}
 		function keyBindWithCtrlAlt(k, fun) {
 			if(e.ctrlKey && e.altKey && k === e.keyCode){
 				fun();
 				e.preventDefault();
 			}
-		};
+		}
 		function keyBindWithAlt(k, fun) {
 			if(e.altKey && !e.ctrlKey && k === e.keyCode){
 				fun();
 				e.preventDefault();
 			}
-		};
+		}
 		function keyBind(k, fun) {
 			if(k === e.keyCode) {
 				lastKeyCode = e.keyCode;
@@ -599,7 +601,8 @@ var App = (function (my) {
 		});
 		keyBind(keyCodes.f12, toggleDevTools);	
 		
-		return e;
+		//return e;
+		return false;
 	};
 				
 	var bufferSwitcherChangeEvent = function(fileName) {		
@@ -609,7 +612,7 @@ var App = (function (my) {
 			}
 		});
 		
-		console.log("bufferSwitcherChangeEvent: " + buffer);
+		//console.log("bufferSwitcherChangeEvent: " + buffer);
 		
 		switchBuffer(buffer);
 	};
@@ -625,7 +628,7 @@ var App = (function (my) {
 		
 	var bindEvents = function() {
 		bindElementEvent($bufferSwitcher, "change", function(b) {
-			console.log("bufferSwitcher: " + b.value);
+			//console.log("bufferSwitcher: " + b.value);
 			bufferSwitcherChangeEvent(b.value);
 			togglePage($editor, function() { 
 				setEditorTitle();
@@ -681,8 +684,6 @@ var App = (function (my) {
 			return f.path;
 		});
 		e.preventDefault();
-		editorState = editorStateWithoutNewEmptyFiles();
-		//console.log(files);
 		open(files);
 	};
 		
@@ -708,12 +709,12 @@ var App = (function (my) {
 			} else {
 				this.origOnCommandKey(e,h,k);
 			}
-		}
-		window.ondragover = function(e) { e.preventDefault(); }
-		window.ondrop = function(e) { e.preventDefault(); }
-		document.ondrop = function(e) { documentOndrop(e); }
-		document.onkeydown = function(e) { documentOnkeydown(e); }
-		document.onkeyup = function(e) { lastKeyCode = null; }
+		};
+		window.ondragover = function(e) { e.preventDefault(); };
+		window.ondrop = function(e) { e.preventDefault(); };
+		document.ondrop = function(e) { documentOndrop(e); };
+		document.onkeydown = function(e) { documentOnkeydown(e); };
+		document.onkeyup = function(e) { lastKeyCode = null; };
 		$about.html(markdown(openAboutFile()));
 		showGutter(editor, false);
 		setEditorTheme(editor, "chaos");
@@ -723,7 +724,7 @@ var App = (function (my) {
 		fillSelectWithOptions($fontSizeSwitcher, fontSizes);
 		window.onunload = function(e) {
 			writeConfig(); 
-		}
+		};
 		readConfig(function(o) {
 			setEditorPropsFromConfig(JSON.parse(o));
 		});
