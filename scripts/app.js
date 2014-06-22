@@ -3,6 +3,7 @@ var App = (function (my) {
 	
 	var fs = require('fs');
 	var remote = require('remote');
+	var dialog = remote.require('dialog');
 	var sprintf = require('./libs/sprintf.min.js');
 	var fsExtra = require("fs-extra");
 	var path = require("path");
@@ -27,9 +28,13 @@ var App = (function (my) {
 	var $languageModeSwitcher = $("#languageModeSwitcher");
 	var $notification = $("#notification");
 	var $help = $("#help");
+	var $reloadApp = $("#reloadAppBtn");
+	var $toggleDevTools = $("#toggleDevToolsBtn");
+	var $closeControlPanel = $("#controlPanelBtn");
 	
 	var pages = [$editor, $controlPanel, $about, $help];
-	
+	var lastKeyCode = null;
+	var notificationFadeOutSpeed = 1250;
 	var configFilePath = __dirname + "/config/settings.json";
 	var aceResourcePath = __dirname + "/libs/ace-min-noconflict";
 	var newBufferName = "New.txt";
@@ -60,64 +65,21 @@ var App = (function (my) {
 		f10: 121,
 		f11: 122,
 		f12: 123
-	}
+	};
 	
 	var editorState = [];
-	var currentBuffer = [];
-	
-	var front = document.getElementById('editor'),
-		back;
-	var flipped = false;
-	
-    editor.setTheme("ace/theme/dawn");
-    editor.getSession().setMode("ace/mode/javascript");	
-	
-	document.onkeydown = function(e) {
-		if(e.ctrlKey /*&& e.altKey*/) {
-			switch(e.keyCode) {
-				case 88: // x
-					my.reloadApp();
-				break;
-				case 77: // m
-					my.toggleDevTools();
-				break;
-				case 66: // b
-					if(!flipped) {
-						var back_content = document.getElementById('control-panel').innerHTML;
-						back = flippant.flip(front, back_content, 'modal');
-						flipped = true;
-					} else {
-						back.close();
-						flipped = false;
-					}
-				break;
-			}
-		}
-		return e;
-	};
-
-	// ---- private functions ---------------------------------------------- //
+	var currentBuffer = {};
 	
 	var openAboutFile = function() {
 		return fs.readFileSync(aboutFilePath).toString();
 	};
 	
 	var readFileSync = function(file) {
-		return fs.readFileSync(file.path).toString();
+		return fs.readFileSync(file).toString();
 	};
 	
 	var writeFileSync = function(filePath, content) {
 		fs.writeFileSync(filePath, content);
-	};
-	
-	var watchWindowCloseEvent = function(func) {
-		// The window in this context should be the Atom-Shell browser window
-		// and it's close method, however that is called. Need to research it.
-		
-		//window.on("close", function() {
-		//	func();
-		//	window.close(true);
-		//});
 	};
 	
 	var setEditorTheme = function(editor, theme) {
@@ -140,12 +102,17 @@ var App = (function (my) {
 	
 	var loadAndEnableEditorSnippets = function(editor, config) {
 		config.loadModule("ace/ext/language_tools");
-		editor.setOptions({enableBasicAutocompletion: true, enableSnippets: true});
+		editor.setOptions({
+			enableBasicAutocompletion: true, 
+			enableSnippets: true}
+		);
 	};
 
 	var setEditorHighlightingMode = function(session, mode, func) {
+		console.log("setEditorHighlightingMode called");
 		if(mode) {
 			session.setMode("ace/mode/" + mode);
+		} else {
 			session.setMode();
 		}
 		if(func) {
@@ -153,9 +120,9 @@ var App = (function (my) {
 		}
 	};
 	
-	function setEditorHighlightingMode(session, mode) {
-		setEditorHighlightingMode(session, mode, null);
-	};
+	//function setEditorHighlightingMode(session, mode) {
+	//	setEditorHighlightingMode(session, mode, null);
+	//};
 	
 	var setHighlighting = function(session, ext, func) {
 		switch(ext) {
@@ -189,6 +156,7 @@ var App = (function (my) {
 	var showInvisibleChars = function(editor, result) {
 		if(result) {
 			editor.setShowInvisibles(true);
+		} else {
 			editor.setShowInvisibles(false);
 		}
 	};
@@ -196,15 +164,18 @@ var App = (function (my) {
 	var showIndentGuides = function(editor, result) {
 		if(result) {
 			editor.setDisplayIndentGuides(true);
+		} else {
 			editor.setDisplayIndentGuides(false);
-		}
+		}		
 	};		
 
 	var showGutter = function(editor, result) {
 		if(result) {
 			editor.renderer.setShowGutter(true);
+		} else {
 			editor.renderer.setShowGutter(false);
 		}
+		rerenderEditor();
 	};
 		
 	var setLineEndingsMode = function(editor, mode) {
@@ -212,15 +183,15 @@ var App = (function (my) {
 	};
 		
 	var setLineWrap = function(editor, lines) {
-			var session = editor.getSession();
-			
-			if(lines > 0) {
-				session.setUseWrapMode(true)
-				session.setWrapLimitRange(lines, lines);
-			} else {
-				session.setUseWrapMode(false);
-				session.setWrapLimitRange(null, null);
-			}
+		var session = editor.getSession();
+		
+		if(lines > 0) {
+			session.setUseWrapMode(true)
+			session.setWrapLimitRange(lines, lines);
+		} else {
+			session.setUseWrapMode(false);
+			session.setWrapLimitRange(null, null);
+		}
 	};
 
 	var setPrintMargin = function(editor, column) {
@@ -249,15 +220,14 @@ var App = (function (my) {
 		elem.append(sprintf.sprintf("<option value='%s'>%s</option>", val, val));
 	};
 	
-	var fillSelectWithOptions = function(elem, items) {
-		//console.log(items);
+	var fillSelectWithOptions = function(elem, items) {		
 		return _.map(items, function(i) {
 			createOption(elem, i);
 		});
 	};
 	
 	var bindElementEvent = function(elem, event, callback) {
-		elem.bind(event, function(e) {
+		elem.bind(event, function() {
 			callback(this);
 		});
 	};
@@ -272,39 +242,46 @@ var App = (function (my) {
 	};
 	
 	var setEditorTitle = function(title) {
-		if (title !== currentBuffer.fileName) {
-			document.title = sprintf.sprintf("%s - [ %s ]", editorName, title);
+		if(title === "" || title === undefined) {
+			title = currentBuffer.fileName;
+		}
+		
+		console.log("setEditorTitle = " + title);
+		if(title.indexOf(currentBuffer.fileName) !== 0) {
+			document.title = sprintf.sprintf("%s - [%s]", editorName, title);
 		} else {
 			document.title = sprintf.sprintf("%s - [%s] (Lines: %d)", editorName, title, editor.getSession().getLength());
 		}
 	};
 
-	function setEditorTitle() {
-		setEditorTitle(currentBuffer.fileName);
-	};
-	
 	var switchBuffer = function(buffer) {
-		currentBuffer = buffer;
+		console.log("buffer.file: " + buffer.fileName);
+				
 		editor.setSession(buffer.session);
 		buffer.session.setUndoManager(buffer.undoManager);
 		setEditorTitle(buffer.fileName);
 		$bufferSwitcher.val(currentBuffer.fileName);
 
-		if(buffer.filepath !== "") {
+		if(buffer.filePath !== "") {
 			setHighlighting(buffer.session, path.extname(buffer.filePath), function(m) {
+				console.log("file ext: " + path.extname(buffer.filePath));
 				$languageModeSwitcher.val(m);
 			});
 		}
+		
+		currentBuffer = buffer;
 	};
 	
 	var insertNewBuffer = function(file) {
 		var newBuffer = {};
 		
+		//console.log("file: " + file);
+		
 		if(file !== null && file !== undefined) {
 			var text = readFileSync(file);
 			
-			newBuffer = {fileName: file.name,
-						 filePath: file.path,
+			newBuffer = {fileName: path.basename(file),
+						 filePath: file,
 						 text: text,
 						 session: new ace.EditSession(text, "text")};
 		} else {
@@ -324,36 +301,40 @@ var App = (function (my) {
 			if (currentBuffer.text.length > 0) {
 				setEditorTitle(currentBuffer.fileName + "*");
 			} else {
-				setEditorTitle();
+				setEditorTitle(currentBuffer.fileName);
 			}
 		}, newBuffer);
 		
+		console.log("returning new buffer: " + newBuffer.fileName);
+		
 		return newBuffer;
-	};
-
-	function insertNewBuffer() {
-		insertNewBuffer(null);
 	};
 
 	var insertNewBufferAndSwitch = function() {
 		switchBuffer(insertNewBuffer());
 	};
 
-	var rerenderEditor = function() {
+	var rerenderEditor = function() {		
 		editor.renderer.updateFull();
+		editor.resize(true);
 	};
 	
-	//(defn toggle-page [elem & {:keys [func] :or {func nil}}]
-	//	(doall (map #(jq/fade-out % "fast") pages))
-	//	(if (.is elem ":visible")
-	//		(do
-	//			(jq/fade-in $editor "fast")
-	//			(rerender-editor)
-	//			(set-editor-title))
-	//		(do			
-	//			(jq/fade-in elem "fast")
-	//			(when func
-	//				(func)))))
+	var togglePage = function(elem, func) {
+		_.forEach(pages, function(p) {
+			p.fadeOut("fast");
+		});
+
+		if (elem.is(":visible")) {
+			$editor.fadeIn("fast");
+			rerenderEditor();
+			setEditorTitle();			
+		} else {
+			elem.fadeIn("fast");
+			if(func) {
+				func();
+			}
+		}
+	};
 	
 	var writeConfig = function() {
 		var configFile = {
@@ -361,15 +342,15 @@ var App = (function (my) {
 			fontSize: $fontSizeSwitcher.val(),
 			showInvisibleChars: $showInvisibleChars.prop("checked"),
 			showIndentGuides: $showIndentGuides.prop("checked"),
-		    showGutter: $showGutter.prop("checked"),
+			showGutter: $showGutter.prop("checked"),
 			lineWrap: $lineWrap.prop("checked"),
-		    printMargin: $printMargin.prop("checked"),
+			printMargin: $printMargin.prop("checked"),
 			lineEndingsMode: $lineEndingsSwitcher.val()
 		};
 		var json = JSON.stringify(configFile);
 		fsExtra.mkdirsSync(path.dirname(configFilePath));
 		writeFileSync(configFilePath, json);
-	};
+	}
 	
 	var setEditorPropsFromConfig = function(config) {
 		if(config) {
@@ -377,7 +358,7 @@ var App = (function (my) {
 			setEditorFontSize(editor, config.fontSize);
 			$themeSwitcher.val(config.theme);
 			$fontSizeSwitcher.val(config.fontSize);
-			
+	
 			$showInvisibleChars.prop({checked: config.showInvisibleChars});
 			showInvisibleChars(editor, config.showInvisibleChars);
 			
@@ -414,7 +395,7 @@ var App = (function (my) {
 	
 	var readConfig = function(func) {
 		var exists = fs.existsSync(configFilePath);
-		
+	
 		if(exists) {
 			fs.readFile(configFilePath, function(error, data) {
 				if(!error) {
@@ -427,43 +408,52 @@ var App = (function (my) {
 	};
 	
 	var open = function(files) {
+		//console.log("open files: " + files);
+		
 		var newBuffers = _.map(files, function(f) {
-			insertNewBuffer(f);
+			return insertNewBuffer(f);
 		});
 		
-		switchBuffer(_.take(newBuffers, 1));
+		//console.log(newBuffers);
+		
+		switchBuffer(_.take(newBuffers));
 	};
 	
-	var openFileDialog = function() {
-		//(jq/trigger $file-open-dialog "click"))
+	var fileOpenDialogChangeEvent = function(results) {
+		open(results);
 	};
 
-	var fileOpenDialogChangeEvent = function(result) {
-		open(result.files);
+	var openFileDialog = function() {		
+		dialog.showOpenDialog({ properties: [ 'openFile', 'multiSelections' ]}, function(f) {
+			fileOpenDialogChangeEvent(f);
+		});
 	};
-			
+	
 	var save = function() {
-		writeFileSync(currentBuffer.file-path, currentBuffer.text);
+		writeFileSync(currentBuffer.filePath, currentBuffer.text);
 		setEditorTitle();
 	};
 
-	var saveOrSaveAsFile = function() {
-		//	(if (not (empty? (:file-path @current-buffer)))
-		//		(save)
-		//		(jq/trigger $file-save-as-dialog "click")))
-	};
-		
 	var fileSaveAsDialogChangeEvent = function(result) {
-		//	(let [files (array-seq (.-files result))
-		//		  file (first files)]
-		//		(swap! current-buffer conj {:file-path (.-path file) 
-		//									:file-name (.-name file)})
-		//		;(util/log (str "save-as: " @current-buffer))
-		//		;(util/log (str "save-as: " (:file-path @current-buffer)))
-		//		(save)
-		//		(switch-buffer @current-buffer)))
+		console.log("saving + " + result);
+		
+		currentBuffer.fileName = path.extname(result);
+		currentBuffer.filePath = result;
+		save();
+		switchBuffer(currentBuffer);
 	};
-
+	
+	var saveOrSaveAsFile = function() {		
+		if(currentBuffer !== undefined && currentBuffer.filePath !== "" && currentBuffer.filePath !== undefined) {
+			save();
+		} else {
+			dialog.showSaveDialog(function(f) {
+				console.log("finished with save dialog");
+				fileSaveAsDialogChangeEvent(f);
+			});
+		}
+	};
+	
 	var cycleBuffer = function() {
 		//	(when (> (alength (to-array @editor-state)) 1)
 		//		(let [curr-index (first (util/indices #(= @current-buffer %) @editor-state))
@@ -485,7 +475,7 @@ var App = (function (my) {
 		//			(jq/val $theme-switcher next-theme)
 		//			(.trigger $theme-switcher "change"))))
 	};
-				  
+					
 	var closeBuffer = function() {
 		//	(when-not (empty? @editor-state)
 		//		(when (js/confirm warning-close-buffer)
@@ -498,70 +488,164 @@ var App = (function (my) {
 		//					(switch-buffer (insert-new-buffer)))))))
 	};
 
-	var closeAllBuffers = new function() {
-		//	(when (js/confirm warning-close-all-buffers)
-		//		(reset! editor-state [])
-		//		(fill-buffer-list-with-names) 
-		//		(switch-buffer (insert-new-buffer))))
+	var closeAllBuffers = function() {
+		if (confirm(warningCloseAllBuffers)) {
+			editorState = [];
+			fillBufferListWithNames();
+			switchBuffer(insertNewBuffer);
+		}
 	};
 
 	var editorStateWithoutNewEmptyFiles = function() {
-		//	; Need to filter the editor-state such that all files starting with 
-		//	; new-buffer-name and having a no text are eliminated and the new state is returned
-		//	(let [new-state (filter #(if-not (and (util/starts-with (:file-name %) new-buffer-name) (empty? (:text %))) %) @editor-state)]
-		//	;(util/log (str new-state))
-		//	new-state))
+		//(let [new-state (filter #(if-not (and (util/starts-with (:file-name %) new-buffer-name) (empty? (:text %))) %) @editor-state)]
+		//new-state))
+		
+		return _.filter(editorState, function(f) {
+			if(f.fileName.indexOf(newBufferName) == 0 && f.text !== "") {
+				return f;
+			}
+		});		
 	};
 
+	var reloadApp = function () {
+		browser.reload();
+	};
+
+	var toggleDevTools = function () {
+		browser.toggleDevTools();
+	};
+	
 	var documentOnkeydown = function(e) {
-		//	"Handles all of the custom key combos for the editor. All combos start with CTRL and then the key."
-		//	;(util/log (str "Keycode: " (.-keyCode e)))
-		//	(let [key-bind-with-ctrl (fn [k fun] (when (and (.-ctrlKey e) (not (.-altKey e)) (= (.-keyCode e) (k key-codes)) (do (fun) (jq/prevent e)))))
-		//		  key-bind-with-ctrl-alt (fn [k fun] (when (and (.-ctrlKey e) (.-altKey e) (= (.-keyCode e) (k key-codes)) (do (fun) (jq/prevent e)))))
-		//		  key-bind-with-alt (fn [k fun] (when (and (.-altKey e) (= (.-keyCode e) (k key-codes)) (do (fun) (jq/prevent e)))))
-		//		  key-bind (fn [k fun] (when (and (not (.-altKey e)) (not (.-ctrlKey e)) (= (.-keyCode e) (k key-codes))) (do (fun) (jq/prevent e))))]
-		//		(key-bind-with-ctrl-alt :b util/nw-refresh)
-		//		(key-bind-with-ctrl :n insert-new-buffer-and-switch)
-		//		(key-bind-with-ctrl :o open-file-dialog)
-		//		(key-bind-with-ctrl :s save-or-save-as-file)	
-		//		(key-bind-with-ctrl :m close-buffer)
-		//		(key-bind-with-ctrl-alt :m close-all-buffers)
-		//		(key-bind-with-ctrl :tab cycle-buffer)
-		//		(key-bind-with-ctrl :w write-config)
-		//		(key-bind :f2 #(toggle-page $control-panel :func (fn [] (set-editor-title "Control Panel"))))		
-		//		(key-bind :f3 cycle-editor-themes)
-		//		(key-bind :f10 #(toggle-page $help :func (fn [] (set-editor-title "Help"))))
-		//		(key-bind :f11 #(toggle-page $about :func (fn [] (set-editor-title "About"))))
-		//		(key-bind :f12 util/show-nw-dev-tools)	
-		//		e))
+		if(lastKeyCode === e.keyCode) {
+			return;
+		}
+		
+		function keyBindWithCtrl(k, fun) {
+			if(e.ctrlKey && !e.altKey && k === e.keyCode){
+				fun();
+				e.preventDefault();
+			}
+		};
+		function keyBindWithCtrlAlt(k, fun) {
+			if(e.ctrlKey && e.altKey && k === e.keyCode){
+				fun();
+				e.preventDefault();
+			}
+		};
+		function keyBindWithAlt(k, fun) {
+			if(e.altKey && !e.ctrlKey && k === e.keyCode){
+				fun();
+				e.preventDefault();
+			}
+		};
+		function keyBind(k, fun) {
+			if(k === e.keyCode) {
+				lastKeyCode = e.keyCode;
+				fun();
+				e.preventDefault();
+			}
+		}
+		
+		keyBindWithCtrlAlt(keyCodes.b, reloadApp);
+		keyBindWithCtrl(keyCodes.n, insertNewBufferAndSwitch);
+		keyBindWithCtrl(keyCodes.o, openFileDialog);
+		keyBindWithCtrl(keyCodes.s, saveOrSaveAsFile);
+		keyBindWithCtrl(keyCodes.m, closeBuffer);
+		keyBindWithCtrlAlt(keyCodes.m, closeAllBuffers);
+		keyBindWithCtrl(keyCodes.tab, cycleBuffer);
+		keyBindWithCtrl(keyCodes.w, writeConfig);
+		keyBind(keyCodes.f2, function() {			
+			togglePage($controlPanel, function() { 				
+				setEditorTitle("Control Panel");
+			});
+		});
+		keyBind(keyCodes.f3, cycleEditorThemes);
+		keyBind(keyCodes.f10, function() {
+			togglePage($help, function() {
+				setEditorTitle("Help");
+			});
+		});
+		keyBind(keyCodes.f11, function() {			
+			togglePage($about, function() {
+				setEditorTitle("About");
+			});
+		});
+		keyBind(keyCodes.f12, toggleDevTools);	
+		
+		return e;
 	};
 				
-	var bufferSwitcherChangeEvent = function(fileName) {
-		//	(let [buffer (first (util/find-map @editor-state :file-name file-name))]
-		//		(switch-buffer buffer)))
+	var bufferSwitcherChangeEvent = function(fileName) {		
+		var buffers = _.map(editorState, function(f) {
+			if(f.fileName !== fileName) {
+				return f;
+			}
+		});
+		
+		switchBuffer(_.take(buffers));
 	};
 
 	var displayNotification = function(msg) {
-		//	(jq/html $notification msg)	
-		//	(jq/fade-in $notification "slow" 
-		//		(fn [] (.setTimeout js/window
-		//			#(jq/fade-out $notification "slow") notification-fade-out-speed))))
+		$notification.html(msg);
+		$notification.fadeIn("slow", function() {
+			window.setTimeout(function() {
+				$notification.fadeOut("slow");
+			}, notificationFadeOutSpeed);
+		});
 	};
 		
 	var bindEvents = function() {
-		//	(util/bind-element-event $file-open-dialog :change #(file-open-dialog-change-event %))
-		//	(util/bind-element-event $file-save-as-dialog :change #(file-save-as-dialog-change-event %))
-		//	(util/bind-element-event $buffer-switcher :change #(do (buffer-switcher-change-event (.-value %)) (toggle-page $control-panel :func (fn [] (set-editor-title "Control Panel")))))
-		//	(util/bind-element-event $theme-switcher :change #(do (frehley/set-editor-theme editor (.-value %)) (display-notification (str "Theme: " (.-value %))) (write-config)))
-		//	(util/bind-element-event $language-mode-switcher :change #(do (frehley/set-editor-highlighting-mode (.getSession editor) (.-value %))))
-		//	(util/bind-element-event $font-size-switcher :change #(do (frehley/set-editor-font-size editor (.-value %)) (write-config)))
-		//	(util/bind-element-event $show-invisible-chars :click #(frehley/show-invisible-chars editor (.-checked %)))
-		//	(util/bind-element-event $show-indent-guides :click #(frehley/show-indent-guides editor (.-checked %)))
-		//	(util/bind-element-event $show-gutter :click #(frehley/show-gutter editor (.-checked %)))
-		//	(util/bind-element-event $line-wrap :click #(frehley/set-line-wrap editor 80))
-		//	(util/bind-element-event $print-margin :click #((if (.-checked %) 
-		//		(frehley/set-print-margin editor 80) (frehley/set-print-margin editor -1))))
-		//	(util/bind-element-event $line-endings-switcher :change #(frehley/set-line-endings-mode editor (.-value %))))
+		//bindElementEvent($fileOpenDialog, 'change', function(f) { fileOpenDialogChangeEvent(f); });
+		//(util/bind-element-event $file-save-as-dialog :change #(file-save-as-dialog-change-event %))
+		bindElementEvent($bufferSwitcher, "change", function(b) {
+			bufferSwitcherChangeEvent(b.value);
+			togglePage($editor, function() { 
+				setEditorTitle();
+			});
+		});
+		bindElementEvent($themeSwitcher, "change", function(t) {
+			setEditorTheme(editor, t.value);
+			displayNotification(sprintf.sprintf("Theme: %s", t.value));
+			writeConfig();
+		});
+		bindElementEvent($languageModeSwitcher, "change", function(l) {
+			setEditorHighlightingMode(editor.getSession(), l.value);
+		});
+		bindElementEvent($fontSizeSwitcher, "change", function(f) {
+			setEditorFontSize(editor, f.value);
+			writeConfig();
+		});
+		bindElementEvent($showInvisibleChars, "click", function(i) {
+			showInvisibleChars(editor, i.checked);
+		});
+		bindElementEvent($showIndentGuides, "click", function(i) {
+			showIndentGuides(editor, i.checked);
+		});
+		bindElementEvent($showGutter, "click", function(v) { showGutter(editor, v.checked); });
+		bindElementEvent($lineWrap, "click", function(l) {
+			setLineWrap(editor, 80);
+		});
+		bindElementEvent($printMargin, "click", function(p) {
+			if (p.checked) {
+				setPrintMargin(editor, 80);
+			} else {			
+				setPrintMargin(editor, -1);
+			}
+		});
+		bindElementEvent($lineEndingsSwitcher, "change", function(e) {
+			setLineEndingsMode(editor, e.value);
+		});
+		bindElementEvent($closeControlPanel, "click", function() {
+			togglePage($editor, function() { 				
+				setEditorTitle();
+			});
+		});
+		bindElementEvent($toggleDevTools, "click", function() {
+			toggleDevTools();
+		});
+		bindElementEvent($reloadApp, "click", function() {
+			reloadApp();
+		});	
 	};
 	
 	var documentOndrop = function(e) {
@@ -569,7 +653,7 @@ var App = (function (my) {
 		e.preventDefault();
 		editorState = editorStateWithoutNewEmptyFiles();
 		open(files);
-	}
+	};
 		
 	// ---- init ----------------------------------------------------------- //
 	
@@ -582,22 +666,23 @@ var App = (function (my) {
 		controlPanelInfo.append(", Atom-Shell: " + remote.process.versions['atom-shell']);
 	
 		//	; The following hackery is to get around the key stealing by Ace. I wanted to use
-		//	; the F2 key and apparently Ace is stilling the events on that key. This clears it up!
+		//	; the F2 key and apparently Ace is stealing the events on that key. This clears it up!
 		//	;
 		//	; Got the idea from here: http://japhr.blogspot.com/2013/03/ace-events-removing-and-handling.html
 		//	;
-		//	(set! (.-origOnCommandKey (.-keyBinding editor)) (.-onCommandKey (.-keyBinding editor)))
-		//	(set! (.-onCommandKey (.-keyBinding editor)) (fn [e h k] 
-		//															(do
-		//																(let [key-code (.-keyCode e)]
-		//																	; it is what it is, don't laugh!
-		//																	(when (= key-code 113)
-		//																		(document-onkeydown e))
-		//																	(this-as x (.origOnCommandKey x e h k))))))
+		editor.keyBinding.origOnCommandKey = editor.keyBinding.onCommandKey;
+		editor.keyBinding.onCommandKey = function(e, h, k) {
+			if(e.keyCode === 113) {
+				documentOnkeydown(e);
+			} else {
+				this.origOnCommandKey(e,h,k);
+			}
+		}
 		window.ondragover = function(e) { e.preventDefault(); }
 		window.ondrop = function(e) { e.preventDefault(); }
 		document.ondrop = function(e) { documentOndrop(e); }
-		//document.onkeydown = function(e) { documentOnkeydown(e); }
+		document.onkeydown = function(e) { documentOnkeydown(e); }
+		document.onkeyup = function(e) { lastKeyCode = null; }
 		$about.html(markdown(openAboutFile()));
 		showGutter(editor, false);
 		setEditorTheme(editor, "chaos");
@@ -605,7 +690,9 @@ var App = (function (my) {
 		fillSelectWithOptions($themeSwitcher, aceThemes);
 		fillSelectWithOptions($languageModeSwitcher, getResourceList(aceResourcePath, "mode"));
 		fillSelectWithOptions($fontSizeSwitcher, fontSizes);
-		watchWindowCloseEvent(function() { writeConfig(); });
+		window.onunload = function(e) {
+			writeConfig(); 
+		}
 		readConfig(function(o) {
 			setEditorPropsFromConfig(JSON.parse(o));
 		});
@@ -613,24 +700,5 @@ var App = (function (my) {
 		insertNewBufferAndSwitch();
 	});
 	
-	
-	// -----public functions ----------------------------------------------- //
-	
-	//my.showControlPanel = function() {
-	//	back = flippant.flip(front, back_content, 'modal');
-	//};
-	
-	my.closeControlPanel = function() {
-		back.close();
-	};
-	
-	my.reloadApp = function () {
-		browser.reload();
-	};
-
-	my.toggleDevTools = function () {
-		browser.toggleDevTools();
-	};
-
 	return my;
 }(App));

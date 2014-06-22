@@ -18,8 +18,35 @@ body {
 	font-style: normal;*/
 }
 
+.notification {
+	display: none;
+	position: absolute;
+	float: right;
+	top: 5px;
+	right: 5px;
+	border: 2px solid red;
+	font-size: 24px;
+	font-weight: bold;
+	text-align: center;
+	background-color: #fff;
+	color: #000;
+	z-index: 100;
+	padding: 5px;
+	-webkit-border-radius: 10px;
+}
+
 .control-panel {
 	display: none;
+	overflow: auto;
+	background-color: #fff;
+	margin: 0;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 25px;
+	color: #000;
 }
 
 .control-panel-btn {
@@ -36,4 +63,18 @@ body {
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
+}
+
+.about, .help, .start {
+	margin: 0;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	display: none;
+	overflow: auto;
+	background-color: #fff;
+	color: #000;
+	padding: 25px;
 }
