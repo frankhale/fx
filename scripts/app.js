@@ -109,7 +109,7 @@ var App = (function (my) {
 	};
 
 	var setEditorHighlightingMode = function(session, mode, func) {
-		console.log("setEditorHighlightingMode called");
+		//console.log("setEditorHighlightingMode called");
 		if(mode) {
 			session.setMode("ace/mode/" + mode);
 		} else {
@@ -119,10 +119,6 @@ var App = (function (my) {
 			func(mode);
 		}
 	};
-	
-	//function setEditorHighlightingMode(session, mode) {
-	//	setEditorHighlightingMode(session, mode, null);
-	//};
 	
 	var setHighlighting = function(session, ext, func) {
 		switch(ext) {
@@ -233,11 +229,14 @@ var App = (function (my) {
 	};
 	
 	var fillBufferListWithNames = function() {
+		console.log("fillBufferListWithNames: editorState = " + editorState);
+		
 		var names = _.pluck(editorState, 'fileName');
+		
+		//console.log("names = " + names);
+		
 		names = names.sort();
-		
 		$bufferSwitcher.html("");
-		
 		fillSelectWithOptions($bufferSwitcher, names);
 	};
 	
@@ -246,7 +245,7 @@ var App = (function (my) {
 			title = currentBuffer.fileName;
 		}
 		
-		console.log("setEditorTitle = " + title);
+		//console.log("setEditorTitle = " + title);
 		if(title.indexOf(currentBuffer.fileName) !== 0) {
 			document.title = sprintf.sprintf("%s - [%s]", editorName, title);
 		} else {
@@ -255,7 +254,7 @@ var App = (function (my) {
 	};
 
 	var switchBuffer = function(buffer) {
-		console.log("buffer.file: " + buffer.fileName);
+		//console.log("buffer.file: " + buffer.fileName);
 				
 		editor.setSession(buffer.session);
 		buffer.session.setUndoManager(buffer.undoManager);
@@ -264,7 +263,7 @@ var App = (function (my) {
 
 		if(buffer.filePath !== "") {
 			setHighlighting(buffer.session, path.extname(buffer.filePath), function(m) {
-				console.log("file ext: " + path.extname(buffer.filePath));
+				//console.log("file ext: " + path.extname(buffer.filePath));
 				$languageModeSwitcher.val(m);
 			});
 		}
@@ -305,7 +304,7 @@ var App = (function (my) {
 			}
 		}, newBuffer);
 		
-		console.log("returning new buffer: " + newBuffer.fileName);
+		//console.log("returning new buffer: " + newBuffer.fileName);
 		
 		return newBuffer;
 	};
@@ -435,32 +434,44 @@ var App = (function (my) {
 	};
 
 	var fileSaveAsDialogChangeEvent = function(result) {
-		console.log("saving + " + result);
-		
-		currentBuffer.fileName = path.extname(result);
+		//console.log("saving + " + result);		
+		currentBuffer.fileName = path.basename(result);
 		currentBuffer.filePath = result;
 		save();
 		switchBuffer(currentBuffer);
 	};
 	
-	var saveOrSaveAsFile = function() {		
+	var saveOrSaveAsFile = function() {	
+		//console.log("saveOrSaveAsFile: " + currentBuffer.filePath);
 		if(currentBuffer !== undefined && currentBuffer.filePath !== "" && currentBuffer.filePath !== undefined) {
 			save();
 		} else {
-			dialog.showSaveDialog(function(f) {
-				console.log("finished with save dialog");
+			dialog.showSaveDialog({}, function(f) {
+				//console.log("finished with save dialog");
 				fileSaveAsDialogChangeEvent(f);
 			});
 		}
 	};
 	
 	var cycleBuffer = function() {
-		//	(when (> (alength (to-array @editor-state)) 1)
-		//		(let [curr-index (first (util/indices #(= @current-buffer %) @editor-state))
-		//			  first-part (take curr-index @editor-state)
-		//			  last-part (util/nthrest @editor-state curr-index)
-		//			  new-buffer-order (flatten (merge first-part last-part))]			  
-		//			  (switch-buffer (second new-buffer-order)))))
+		if(editorState.length > 1) {
+			//console.log("currentBuffer.fileName = " + currentBuffer.fileName);
+			//console.log("editorState.length = " + editorState.length);
+			var currIndex = _.findIndex(editorState, { fileName: currentBuffer.fileName });
+			console.log("currIndex = " + currIndex);
+			//_.forEach(editorState, function(f) {
+			//	console.log("editorState: " + f.fileName);
+			//});
+			var firstPart = _.first(editorState, currIndex);
+			var lastPart = _.rest(editorState, currIndex);
+			var newBufferOrder = _.flatten([lastPart, firstPart]);
+			//console.log("newBufferOrder.length = ", newBufferOrder.length);
+			//_.forEach(newBufferOrder, function(f) {
+			//	console.log("newBufferOrder: " + f.fileName);
+			//});
+			//console.log("switch to buffer: " + newBufferOrder[1].fileName);
+			switchBuffer(newBufferOrder[1]);
+		}
 	};
 
 	var cycleEditorThemes = function() {
@@ -477,29 +488,43 @@ var App = (function (my) {
 	};
 					
 	var closeBuffer = function() {
-		//	(when-not (empty? @editor-state)
-		//		(when (js/confirm warning-close-buffer)
-		//			(let [new-state (util/find-map-without @editor-state :file-name (:file-name @current-buffer))]
-		//				;(util/log (str "new-state: " new-state))
-		//				(reset! editor-state new-state)
-		//				(fill-buffer-list-with-names) 
-		//				(if-not (empty? @editor-state)
-		//					(switch-buffer (last @editor-state))
-		//					(switch-buffer (insert-new-buffer)))))))
+		if(editorState.length !== 0) {
+			if(confirm(warningCloseBuffer)) {
+				var newState = _.filter(editorState, function(f) {
+					if(f.fileName !== currentBuffer.fileName) {
+						return f;
+					}					
+				});
+				editorState = newState;
+
+				//console.log("editorState.length = " + editorState.length);
+				
+				if (editorState.length > 0) {
+					//console.log("editorState.length > 0");
+					fillBufferListWithNames();
+
+					var buff = _.last(editorState);
+					
+					//console.log("buff = " + buff);
+					switchBuffer(_.last(editorState));
+				} else {
+					//console.log("editorState.length <= 0");
+					editorState = [];
+					switchBuffer(insertNewBuffer());
+				}
+			}
+		}
 	};
 
 	var closeAllBuffers = function() {
 		if (confirm(warningCloseAllBuffers)) {
 			editorState = [];
 			fillBufferListWithNames();
-			switchBuffer(insertNewBuffer);
+			switchBuffer(insertNewBuffer());
 		}
 	};
 
 	var editorStateWithoutNewEmptyFiles = function() {
-		//(let [new-state (filter #(if-not (and (util/starts-with (:file-name %) new-buffer-name) (empty? (:text %))) %) @editor-state)]
-		//new-state))
-		
 		return _.filter(editorState, function(f) {
 			if(f.fileName.indexOf(newBufferName) == 0 && f.text !== "") {
 				return f;
@@ -595,8 +620,6 @@ var App = (function (my) {
 	};
 		
 	var bindEvents = function() {
-		//bindElementEvent($fileOpenDialog, 'change', function(f) { fileOpenDialogChangeEvent(f); });
-		//(util/bind-element-event $file-save-as-dialog :change #(file-save-as-dialog-change-event %))
 		bindElementEvent($bufferSwitcher, "change", function(b) {
 			bufferSwitcherChangeEvent(b.value);
 			togglePage($editor, function() { 
