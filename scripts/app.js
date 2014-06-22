@@ -259,7 +259,7 @@ var App = (function (my) {
 		editor.setSession(buffer.session);
 		buffer.session.setUndoManager(buffer.undoManager);
 		setEditorTitle(buffer.fileName);
-		$bufferSwitcher.val(currentBuffer.fileName);
+		$bufferSwitcher.val(buffer.fileName);
 
 		if(buffer.filePath !== "") {
 			setHighlighting(buffer.session, path.extname(buffer.filePath), function(m) {
@@ -475,16 +475,19 @@ var App = (function (my) {
 	};
 
 	var cycleEditorThemes = function() {
-		//	(when (> (alength (to-array ace-themes)) 1)		
-		//		(let [curr-theme (jq/val $theme-switcher)
-		//			  curr-index (first (util/indices #(= curr-theme %) ace-themes))
-		//			  first-part (take curr-index ace-themes)
-		//			  last-part (util/nthrest ace-themes curr-index)
-		//			  new-theme-order (flatten (merge first-part last-part))
-		//			  next-theme (second new-theme-order)]
-		//			;(util/log (str "next-theme: " next-theme))				
-		//			(jq/val $theme-switcher next-theme)
-		//			(.trigger $theme-switcher "change"))))
+		if(aceThemes.length > 1) {
+			var currTheme = $themeSwitcher.val();
+			var currIndex = _.findIndex(aceThemes, function(t) {
+				return t == currTheme;
+			});
+
+			var firstPart = _.first(aceThemes, currIndex);
+			var lastPart = _.rest(aceThemes, currIndex);
+			var newThemeOrder = _.flatten([lastPart, firstPart]);
+			
+			$themeSwitcher.val(newThemeOrder[1]);
+			$themeSwitcher.trigger("change");
+		}
 	};
 					
 	var closeBuffer = function() {
@@ -601,13 +604,15 @@ var App = (function (my) {
 	};
 				
 	var bufferSwitcherChangeEvent = function(fileName) {		
-		var buffers = _.map(editorState, function(f) {
-			if(f.fileName !== fileName) {
+		var buffer = _.find(editorState, function(f) {
+			if(f.fileName === fileName) {
 				return f;
 			}
 		});
 		
-		switchBuffer(_.take(buffers));
+		console.log("bufferSwitcherChangeEvent: " + buffer);
+		
+		switchBuffer(buffer);
 	};
 
 	var displayNotification = function(msg) {
@@ -621,6 +626,7 @@ var App = (function (my) {
 		
 	var bindEvents = function() {
 		bindElementEvent($bufferSwitcher, "change", function(b) {
+			console.log("bufferSwitcher: " + b.value);
 			bufferSwitcherChangeEvent(b.value);
 			togglePage($editor, function() { 
 				setEditorTitle();
