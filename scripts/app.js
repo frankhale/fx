@@ -1,6 +1,4 @@
 var App = (function (my) {
-	var my = {};
-	
 	var fs = require('fs');
 	var remote = require('remote');
 	var dialog = remote.require('dialog');
@@ -86,7 +84,7 @@ var App = (function (my) {
 		var t = theme;
 		
 		if (t === "kr") {
-			t = "kr_theme"
+			t = "kr_theme";
 		}
 		
 		editor.setTheme("ace/theme/" + t);
@@ -140,8 +138,9 @@ var App = (function (my) {
 			case ".h": setEditorHighlightingMode(session, "c_cpp", func); break;
 			case ".hh": setEditorHighlightingMode(session, "c_cpp", func); break;
 			case ".txt": setEditorHighlightingMode(session, "text", func); break;
-			
-			setEditorHighlightingMode(session, null, null);
+			default: 
+				setEditorHighlightingMode(session, null, null);
+			break;
 		}
 	};
 	
@@ -182,7 +181,7 @@ var App = (function (my) {
 		var session = editor.getSession();
 		
 		if(lines > 0) {
-			session.setUseWrapMode(true)
+			session.setUseWrapMode(true);
 			session.setWrapLimitRange(lines, lines);
 		} else {
 			session.setUseWrapMode(false);
@@ -678,9 +677,12 @@ var App = (function (my) {
 	};
 	
 	var documentOndrop = function(e) {
-		var files = e.dataTransfer.files;
+		var files = _.pluck(e.dataTransfer.files, function(f) {
+			return f.path;
+		});
 		e.preventDefault();
 		editorState = editorStateWithoutNewEmptyFiles();
+		//console.log(files);
 		open(files);
 	};
 		
