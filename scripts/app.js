@@ -9,10 +9,12 @@
 //
 
 var App = (function (my) {
+	"use strict";
+	
 	var fs = require('fs');
 	var remote = require('remote');
 	var dialog = remote.require('dialog');
-	var sprintf = require('./libs/sprintf.min.js');
+	var _s = require('./libs/sprintf.min.js');
 	var fsExtra = require("fs-extra");
 	var path = require("path");
 	var editor = ace.edit("editor");
@@ -109,15 +111,15 @@ var App = (function (my) {
 	};
 	
 	var loadAndEnableEditorSnippets = function(editor, config) {
-		config.loadModule("ace/ext/language_tools");
-		editor.setOptions({
-			enableBasicAutocompletion: true, 
-			enableSnippets: true}
-		);
+		ace.config.loadModule("ace/ext/language_tools", function() {
+			editor.setOptions({
+				enableSnippets: true,
+				enableBasicAutocompletion: true
+			});
+		});
 	};
 
-	var setEditorHighlightingMode = function(session, mode, func) {
-		//console.log("setEditorHighlightingMode called");
+	var setEditorHighlightingMode = function(session, mode, func) {		
 		if(mode) {
 			session.setMode("ace/mode/" + mode);
 		} else {
@@ -222,7 +224,7 @@ var App = (function (my) {
 	};
 	
 	var createOption = function(elem, val) {
-		elem.append(sprintf.sprintf("<option value='%s'>%s</option>", val, val));
+		elem.append(_s.sprintf("<option value='%s'>%s</option>", val, val));
 	};
 	
 	var fillSelectWithOptions = function(elem, items) {		
@@ -238,12 +240,7 @@ var App = (function (my) {
 	};
 	
 	var fillBufferListWithNames = function() {
-		//console.log("fillBufferListWithNames: editorState = " + editorState);
-		
 		var names = _.pluck(editorState, 'fileName');
-		
-		//console.log("names = " + names);
-		
 		names = names.sort();
 		$bufferSwitcher.html("");
 		fillSelectWithOptions($bufferSwitcher, names);
@@ -254,17 +251,14 @@ var App = (function (my) {
 			title = currentBuffer.fileName;
 		}
 		
-		//console.log("setEditorTitle = " + title);
 		if(title.indexOf(currentBuffer.fileName) !== 0) {
-			document.title = sprintf.sprintf("%s - [%s]", editorName, title);
+			document.title = _s.sprintf("%s - [%s]", editorName, title);
 		} else {
-			document.title = sprintf.sprintf("%s - [%s] (Lines: %d)", editorName, title, editor.getSession().getLength());
+			document.title = _s.sprintf("%s - [%s] (Lines: %d)", editorName, title, editor.getSession().getLength());
 		}
 	};
 
 	var switchBuffer = function(buffer) {
-		//console.log("buffer.file: " + buffer.fileName);
-		
 		currentBuffer = buffer;
 		
 		editor.setSession(currentBuffer.session);
@@ -274,7 +268,6 @@ var App = (function (my) {
 
 		if(buffer.filePath !== "") {
 			setHighlighting(buffer.session, path.extname(currentBuffer.filePath), function(m) {
-				//console.log("file ext: " + path.extname(buffer.filePath));
 				$languageModeSwitcher.val(m);
 			});
 		}
@@ -283,21 +276,23 @@ var App = (function (my) {
 	var insertNewBuffer = function(file) {
 		var newBuffer = {};
 		
-		//console.log("file: " + file);
-		
 		if(file !== null && file !== undefined) {
 			var text = readFileSync(file);
 			
-			newBuffer = {fileName: path.basename(file),
-						 filePath: file,
-						 text: text,
-						 session: new ace.EditSession(text, "text")};
+			newBuffer = {
+				fileName: path.basename(file),
+				filePath: file,
+				text: text,
+				session: ace.createEditSession(text, "text")
+			};
 		} else {
-			newBuffer = {fileName: sprintf.sprintf("%s %d", newBufferName, editorState.length),
-						 session: new ace.EditSession("", "text")};
+			newBuffer = {
+				fileName: _s.sprintf("%s %d", newBufferName, editorState.length),
+				session: ace.createEditSession("", "text")
+			};
 		}
 		
-		newBuffer.undoManager = new ace.UndoManager();
+		newBuffer.undoManager = newBuffer.session.getUndoManager();
 		editorState.push(newBuffer);
 		fillBufferListWithNames();
 		setHighlighting(newBuffer.session, ".txt", function(m) {
@@ -312,9 +307,7 @@ var App = (function (my) {
 				setEditorTitle(currentBuffer.fileName);
 			}
 		}, newBuffer);
-		
-		//console.log("returning new buffer: " + newBuffer.fileName);
-		
+
 		return newBuffer;
 	};
 
@@ -416,13 +409,9 @@ var App = (function (my) {
 	};
 	
 	var open = function(files) {
-		//console.log("open files: " + files);
-		
 		var newBuffers = _.map(files, function(f) {
 			return insertNewBuffer(f);
 		});
-		
-		//console.log(newBuffers);
 		
 		switchBuffer(_.take(newBuffers));
 	};
@@ -440,10 +429,10 @@ var App = (function (my) {
 	var save = function() {
 		writeFileSync(currentBuffer.filePath, currentBuffer.text);
 		setEditorTitle();
+		fillBufferListWithNames();
 	};
 
 	var fileSaveAsDialogChangeEvent = function(result) {
-		//console.log("saving + " + result);		
 		currentBuffer.fileName = path.basename(result);
 		currentBuffer.filePath = result;
 		save();
@@ -451,12 +440,10 @@ var App = (function (my) {
 	};
 	
 	var saveOrSaveAsFile = function() {	
-		//console.log("saveOrSaveAsFile: " + currentBuffer.filePath);
 		if(currentBuffer !== undefined && currentBuffer.filePath !== "" && currentBuffer.filePath !== undefined) {
 			save();
 		} else {
 			dialog.showSaveDialog({}, function(f) {
-				//console.log("finished with save dialog");
 				fileSaveAsDialogChangeEvent(f);
 			});
 		}
@@ -464,21 +451,11 @@ var App = (function (my) {
 	
 	var cycleBuffer = function() {
 		if(editorState.length > 1) {
-			//console.log("currentBuffer.fileName = " + currentBuffer.fileName);
-			//console.log("editorState.length = " + editorState.length);
 			var currIndex = _.findIndex(editorState, { fileName: currentBuffer.fileName });
-			//console.log("currIndex = " + currIndex);
-			//_.forEach(editorState, function(f) {
-			//	console.log("editorState: " + f.fileName);
-			//});
 			var firstPart = _.first(editorState, currIndex);
 			var lastPart = _.rest(editorState, currIndex);
 			var newBufferOrder = _.flatten([lastPart, firstPart]);
-			//console.log("newBufferOrder.length = ", newBufferOrder.length);
-			//_.forEach(newBufferOrder, function(f) {
-			//	console.log("newBufferOrder: " + f.fileName);
-			//});
-			//console.log("switch to buffer: " + newBufferOrder[1].fileName);
+
 			switchBuffer(newBufferOrder[1]);
 		}
 	};
@@ -508,19 +485,11 @@ var App = (function (my) {
 					}					
 				});
 				editorState = newState;
-
-				//console.log("editorState.length = " + editorState.length);
 				
 				if (editorState.length > 0) {
-					//console.log("editorState.length > 0");
 					fillBufferListWithNames();
-
-					var buff = _.last(editorState);
-					
-					//console.log("buff = " + buff);
 					switchBuffer(_.last(editorState));
 				} else {
-					//console.log("editorState.length <= 0");
 					editorState = [];
 					switchBuffer(insertNewBuffer());
 				}
@@ -601,7 +570,6 @@ var App = (function (my) {
 		});
 		keyBind(keyCodes.f12, toggleDevTools);	
 		
-		//return e;
 		return false;
 	};
 				
@@ -611,8 +579,6 @@ var App = (function (my) {
 				return f;
 			}
 		});
-		
-		//console.log("bufferSwitcherChangeEvent: " + buffer);
 		
 		switchBuffer(buffer);
 	};
@@ -628,7 +594,6 @@ var App = (function (my) {
 		
 	var bindEvents = function() {
 		bindElementEvent($bufferSwitcher, "change", function(b) {
-			//console.log("bufferSwitcher: " + b.value);
 			bufferSwitcherChangeEvent(b.value);
 			togglePage($editor, function() { 
 				setEditorTitle();
@@ -636,7 +601,7 @@ var App = (function (my) {
 		});
 		bindElementEvent($themeSwitcher, "change", function(t) {
 			setEditorTheme(editor, t.value);
-			displayNotification(sprintf.sprintf("Theme: %s", t.value));
+			displayNotification(_s.sprintf("Theme: %s", t.value));
 			writeConfig();
 		});
 		bindElementEvent($languageModeSwitcher, "change", function(l) {

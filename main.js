@@ -19,9 +19,9 @@ app.on('window-all-closed', function() {
 app.on('ready', function() {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-	width: 800, 
-	height: 600,
-	icon: __dirname + '/aurora.png'
+	width: 1024, 
+	height: 768,
+	icon: __dirname + '/fx.png'
   });
 
   // and load the index.html of the app.
