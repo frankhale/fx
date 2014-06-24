@@ -41,6 +41,7 @@ var App = (function (my) {
 	var $reloadApp = $("#reloadAppBtn");
 	var $toggleDevTools = $("#toggleDevToolsBtn");
 	var $closeControlPanel = $("#controlPanelBtn");
+	var $controlPanelInfo = $("#control-panel-info");
 	
 	var pages = [$editor, $controlPanel, $about, $help];
 	var lastKeyCode = null;
@@ -80,10 +81,6 @@ var App = (function (my) {
 	var editorState = [];
 	var currentBuffer = {};
 	
-	var openAboutFile = function() {
-		return fs.readFileSync(aboutFilePath).toString();
-	};
-	
 	var readFileSync = function(file) {
 		return fs.readFileSync(file).toString();
 	};
@@ -100,14 +97,6 @@ var App = (function (my) {
 		}
 		
 		editor.setTheme("ace/theme/" + t);
-	};
-	
-	var setEditorFontSize = function(editor, size) {
-		editor.setFontSize(size);
-	};
-	
-	var watchEditorChangeEvent = function(session, func) {
-		session.on("change", func);
 	};
 	
 	var loadAndEnableEditorSnippets = function(editor, config) {
@@ -156,10 +145,6 @@ var App = (function (my) {
 		}
 	};
 	
-	var clearEditor = function(editor) {
-		editor.setValue("");
-	};
-	
 	var showInvisibleChars = function(editor, result) {
 		if(result) {
 			editor.setShowInvisibles(true);
@@ -184,11 +169,7 @@ var App = (function (my) {
 		}
 		rerenderEditor();
 	};
-		
-	var setLineEndingsMode = function(editor, mode) {
-		editor.getSession().setNewLineMode(mode);
-	};
-		
+	
 	var setLineWrap = function(editor, lines) {
 		var session = editor.getSession();
 		
@@ -199,10 +180,6 @@ var App = (function (my) {
 			session.setUseWrapMode(false);
 			session.setWrapLimitRange(null, null);
 		}
-	};
-
-	var setPrintMargin = function(editor, column) {
-		editor.setPrintMarginColumn(column);
 	};
 					
 	var getResourceList = function(resourcePath, prefix) {
@@ -299,14 +276,14 @@ var App = (function (my) {
 			$languageModeSwitcher.val(m);
 		});
 		
-		watchEditorChangeEvent(newBuffer.session, function(e) {
+		newBuffer.session.on("change", function(e) {
 			currentBuffer.text = editor.getValue();
 			if (currentBuffer.text.length > 0) {
 				setEditorTitle(currentBuffer.fileName + "*");
 			} else {
 				setEditorTitle(currentBuffer.fileName);
 			}
-		}, newBuffer);
+		});
 
 		return newBuffer;
 	};
@@ -356,7 +333,7 @@ var App = (function (my) {
 	var setEditorPropsFromConfig = function(config) {
 		if(config) {
 			setEditorTheme(editor, config.theme);
-			setEditorFontSize(editor, config.fontSize);
+			editor.setFontSize(config.fontSize);
 			$themeSwitcher.val(config.theme);
 			$fontSizeSwitcher.val(config.fontSize);
 	
@@ -379,17 +356,17 @@ var App = (function (my) {
 			
 			$lineWrap.prop({checked: config.lineWrap});
 			
-			if (config.printMargin) {
-				setPrintMargin(editor,80);
+			if (config.printMargin) {				
+				editor.setPrintMarginColumn(80);
 			} else {
-				setPrintMargin(editor, -1);
+				editor.setPrintMarginColumn(-1);
 			}
 
-			$printMargin.prop({checked: config.printMargin});
-			setLineEndingsMode(editor, config.lineEndingsMode);
+			$printMargin.prop({checked: config.printMargin});			
+			editor.getSession().setNewLineMode(config.lineEndingsMode)
 		} else {
 			setEditorTheme(editor, $themeSwitcher.val());
-			setEditorFontSize(editor, $fontSizeSwitcher.val());
+			editor.setFontSize($fontSizeSwitcher.val());
 			writeConfig();
 		}
 	};
@@ -415,14 +392,10 @@ var App = (function (my) {
 		
 		switchBuffer(_.take(newBuffers));
 	};
-	
-	var fileOpenDialogChangeEvent = function(results) {
-		open(results);
-	};
 
 	var openFileDialog = function() {		
 		dialog.showOpenDialog({ properties: [ 'openFile', 'multiSelections' ]}, function(f) {
-			fileOpenDialogChangeEvent(f);
+			open(f);
 		});
 	};
 	
@@ -607,8 +580,8 @@ var App = (function (my) {
 		bindElementEvent($languageModeSwitcher, "change", function(l) {
 			setEditorHighlightingMode(editor.getSession(), l.value);
 		});
-		bindElementEvent($fontSizeSwitcher, "change", function(f) {
-			setEditorFontSize(editor, f.value);
+		bindElementEvent($fontSizeSwitcher, "change", function(f) {			
+			editor.setFontSize(f.value);
 			writeConfig();
 		});
 		bindElementEvent($showInvisibleChars, "click", function(i) {
@@ -623,13 +596,13 @@ var App = (function (my) {
 		});
 		bindElementEvent($printMargin, "click", function(p) {
 			if (p.checked) {
-				setPrintMargin(editor, 80);
+				editor.setPrintMarginColumn(80);
 			} else {			
-				setPrintMargin(editor, -1);
+				editor.setPrintMarginColumn(-1);
 			}
 		});
-		bindElementEvent($lineEndingsSwitcher, "change", function(e) {
-			setLineEndingsMode(editor, e.value);
+		bindElementEvent($lineEndingsSwitcher, "change", function(e) {			
+			editor.getSession().setNewLineMode(e.value);
 		});
 		bindElementEvent($closeControlPanel, "click", function() {
 			togglePage($editor, function() { 				
@@ -656,11 +629,10 @@ var App = (function (my) {
 	
 	var aceThemes = getResourceList(aceResourcePath, "theme");
 
-	$(document).ready(function() {
-		var controlPanelInfo = $("#control-panel-info");
-		controlPanelInfo.append("<br/>");
-		controlPanelInfo.append("NodeJS: " + remote.process.version);
-		controlPanelInfo.append(", Atom-Shell: " + remote.process.versions['atom-shell']);
+	$(document).ready(function() {		
+		$controlPanelInfo.append("<br/>");
+		$controlPanelInfo.append("NodeJS: " + remote.process.version);
+		$controlPanelInfo.append(", Atom-Shell: " + remote.process.versions['atom-shell']);
 	
 		//	; The following hackery is to get around the key stealing by Ace. I wanted to use
 		//	; the F2 key and apparently Ace is stealing the events on that key. This clears it up!
@@ -680,7 +652,7 @@ var App = (function (my) {
 		document.ondrop = function(e) { documentOndrop(e); };
 		document.onkeydown = function(e) { documentOnkeydown(e); };
 		document.onkeyup = function(e) { lastKeyCode = null; };
-		$about.html(markdown(openAboutFile()));
+		$about.html(markdown(fs.readFileSync(aboutFilePath).toString()));
 		showGutter(editor, false);
 		setEditorTheme(editor, "chaos");
 		loadAndEnableEditorSnippets(editor, ace.config);

@@ -1,3 +1,12 @@
+//
+// This is basically the verbatim main.js that is posted in the wiki page for
+// getting started with Atom-Shell. I've only modified the browser window
+// declaration.
+//
+// Frank Hale <frankhale@gmail.com>
+// 24 June 2014
+//
+
 var app = require('app');  // Module to control application life.
 var BrowserWindow = require('browser-window');  // Module to create native browser window.
 
@@ -26,8 +35,6 @@ app.on('ready', function() {
 
   // and load the index.html of the app.
   mainWindow.loadUrl('file://' + __dirname + '/index.html');
-
-  mainWindow.toggleDevTools();
   
   // Emitted when the window is closed.
   mainWindow.on('closed', function() {
