@@ -15,15 +15,18 @@
 		<div id="notification" class="notification"></div>
 		<div id="editor"></div>
 		<div id="control-panel" class="control-panel">
-			<button type="button" id="toggleDevToolsBtn" class="btn btn-info">Open Dev Tools</button>
-			<!--onclick="javascript:App.toggleDevTools()"-->
-			<button type="button" id="reloadAppBtn" class="btn btn-danger">Reload App</button>
-			<button type="button" id="controlPanelBtn" class="btn btn-default control-panel-btn">
-				<span class="glyphicon glyphicon-cog"></span>
-			</button>
-			<br/>
-			<br/>
 			<form class="form-horizontal" role="form">
+				<button type="button" id="controlPanelBtn" class="btn btn-default control-panel-btn">
+					<span class="glyphicon glyphicon-cog"></span>
+				</button>
+
+				<div class="form-group">
+					<div class="col-sm-offset-2 col-sm-10">
+						<button type="button" id="toggleDevToolsBtn" class="btn btn-info">Open Dev Tools</button>
+						<button type="button" id="reloadAppBtn" class="btn btn-danger">Reload App</button>
+					</div>
+				</div>
+				
 				<div class="form-group">
 					<label for="bufferSwitcher" class="col-sm-2 control-label">Buffer:</label>
 					<div class="col-sm-3">
@@ -108,7 +111,6 @@
 					  </div>
 					</div>
 				</div>
-			
 			</form>
 			<div id="control-panel-info" class="control-panel-info"></div>
 		</div>

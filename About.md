@@ -4,6 +4,11 @@ Frehley is a minimal text editor based on Atom-Shell and the Ace Editor library
 
 ##Changelog
 
+24 June 2014
+
+- Code cleanup, remove tiny one liner functions and just inline their code at the
+  places they are being used.
+
 22 June 2014
 
 - Port Frehley from Node-Webkit and Clojurescript to Atom-Shell and Javascript. The
