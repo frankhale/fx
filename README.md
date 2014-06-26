@@ -30,6 +30,7 @@ Key short cuts
 - CTRL+ALT+M - Closes all files being edited
 - CTRL+ALT+B - Reloads the editor in Node-Webkit
 - CTRL+TAB - Cycles through opened files
+- F1 - Opens the start screen (unfinished)
 - F2 - Opens the control panel (switch editor theme, font size and current buffer, etc...)
 - F3 - Cycle threw the Ace editor themes 
 - F10 - Opens the help page
@@ -37,5 +38,4 @@ Key short cuts
 - F12 - Opens Node-Webkit Dev Tools
 
 You can drag files onto the editor and it will open the files for editing. Use CTRL+TAB to cycle through
-them or hit F1 to open the control panel and select the file you want from the buffer list then hit F1 again
-to return to the editor. 
+them or hit F2 to open the control panel and select the file you want from the buffer list.
