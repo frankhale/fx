@@ -4,6 +4,12 @@ Frehley is a minimal text editor based on Atom-Shell and the Ace Editor library
 
 ##Changelog
 
+25 June 2014
+
+- Started adding infrastructure for a Start Page that has a recent files list. This
+  is not finished but it proves that I need to stop what I'm doing and start using
+  something like KnockoutJS in order to manage my UI / Model state better.
+
 24 June 2014
 
 - Code cleanup, remove tiny one liner functions and just inline their code at the

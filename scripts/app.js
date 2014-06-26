@@ -26,6 +26,7 @@ var App = (function (my) {
 	var $editor = $("#editor");
 	var $controlPanel = $("#control-panel");
 	var $about = $("#about");
+	var $start = $("#start");
 	var $themeSwitcher = $("#themeSwitcher");
 	var $fontSizeSwitcher = $("#fontSizeSwitcher");
 	var $bufferSwitcher = $("#bufferSwitcher");
@@ -42,11 +43,14 @@ var App = (function (my) {
 	var $toggleDevTools = $("#toggleDevToolsBtn");
 	var $closeControlPanel = $("#controlPanelBtn");
 	var $controlPanelInfo = $("#control-panel-info");
+	var $openFiles = $("#openFilesBtn");
+	var $recentFiles = $("#recentFiles");
 	
-	var pages = [$editor, $controlPanel, $about, $help];
+	var pages = [$editor, $controlPanel, $about, $help, $start];
 	var lastKeyCode = null;
 	var notificationFadeOutSpeed = 1250;
 	var configFilePath = __dirname + "/config/settings.json";
+	var recentFilesPath = __dirname + "/config/recentFiles.json";
 	var aceResourcePath = __dirname + "/libs/ace-min-noconflict";
 	var newBufferName = "new.txt";
 	var editorName = "fx";
@@ -79,6 +83,7 @@ var App = (function (my) {
 	};
 	
 	var editorState = [];
+	var recentFiles = [];
 	var currentBuffer = {};
 	
 	var readFileSync = function(file) {
@@ -330,6 +335,14 @@ var App = (function (my) {
 		writeFileSync(configFilePath, json);
 	};
 	
+	var writeRecentFiles = function() {
+		if(recentFiles.length > 0) {
+			var json = JSON.stringify(_.flatten(recentFiles));
+			fsExtra.mkdirsSync(path.dirname(recentFilesPath));
+			writeFileSync(recentFilesPath, json);
+		}
+	};
+	
 	var setEditorPropsFromConfig = function(config) {
 		if(config) {
 			setEditorTheme(editor, config.theme);
@@ -371,11 +384,30 @@ var App = (function (my) {
 		}
 	};
 	
-	var readConfig = function(func) {
-		var exists = fs.existsSync(configFilePath);
+	var appendRecentFilesToDOM = function(files) {
+		$recentFiles.html("");
+		
+		files = _.take(_.uniq(files), 25);
+		
+		_.forEach(files, function(f) {
+			$recentFiles.append(_s.sprintf("%s <br/>", f));
+		});
+	};
+	
+	var setRecentFilesFromConfig = function(config) {		
+		if(config !== null && config.length !== 0) {
+			recentFiles = JSON.parse(config);
+			appendRecentFilesToDOM(recentFiles);
+		} else {
+			$recentFiles.html("There are no recently opened files");
+		}
+	};
+	
+	var readConfigFile = function(filePath, func) {
+		var exists = fs.existsSync(filePath);
 	
 		if(exists) {
-			fs.readFile(configFilePath, function(error, data) {
+			fs.readFile(filePath, function(error, data) {
 				if(!error) {
 					func(data);
 				}
@@ -391,11 +423,16 @@ var App = (function (my) {
 		});
 		
 		switchBuffer(_.take(newBuffers));
+		
+		recentFiles.push(_.flatten(files));
+		appendRecentFilesToDOM(recentFiles);
 	};
 
 	var openFileDialog = function() {		
 		dialog.showOpenDialog({ properties: [ 'openFile', 'multiSelections' ]}, function(f) {
-			open(f);
+			if(f !== undefined) {
+				open(f);
+			}
 		});
 	};
 	
@@ -406,10 +443,12 @@ var App = (function (my) {
 	};
 
 	var fileSaveAsDialogChangeEvent = function(result) {
-		currentBuffer.fileName = path.basename(result);
-		currentBuffer.filePath = result;
-		save();
-		switchBuffer(currentBuffer);
+		if (result !== undefined) {
+			currentBuffer.fileName = path.basename(result);
+			currentBuffer.filePath = result;
+			save();
+			switchBuffer(currentBuffer);
+		}
 	};
 	
 	var saveOrSaveAsFile = function() {	
@@ -525,6 +564,11 @@ var App = (function (my) {
 		keyBindWithCtrlAlt(keyCodes.m, closeAllBuffers);
 		keyBindWithCtrl(keyCodes.tab, cycleBuffer);
 		keyBindWithCtrl(keyCodes.w, writeConfig);
+		keyBind(keyCodes.f1, function() {
+			togglePage($start, function() { 				
+				setEditorTitle("Start");
+			});
+		});
 		keyBind(keyCodes.f2, function() {			
 			togglePage($controlPanel, function() { 				
 				setEditorTitle("Control Panel");
@@ -614,7 +658,10 @@ var App = (function (my) {
 		});
 		bindElementEvent($reloadApp, "click", function() {
 			reloadApp();
-		});	
+		});
+		bindElementEvent($openFiles, "click", function() {
+			openFileDialog();
+		});
 	};
 	
 	var documentOndrop = function(e) {
@@ -660,11 +707,15 @@ var App = (function (my) {
 		fillSelectWithOptions($languageModeSwitcher, getResourceList(aceResourcePath, "mode"));
 		fillSelectWithOptions($fontSizeSwitcher, fontSizes);
 		window.onunload = function(e) {
-			writeConfig(); 
+			writeConfig();
+			writeRecentFiles();
 		};
-		readConfig(function(o) {
+		readConfigFile(configFilePath, function(o) {
 			setEditorPropsFromConfig(JSON.parse(o));
 		});
+		readConfigFile(recentFilesPath, function(o) {
+			setRecentFilesFromConfig(o);
+		});	
 		bindEvents();
 		insertNewBufferAndSwitch();
 	});
