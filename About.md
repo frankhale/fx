@@ -4,6 +4,10 @@ Frehley is a minimal text editor based on Atom-Shell and the Ace Editor library
 
 ##Changelog
 
+2 September 2014
+
+- Update Ace to the latest build
+
 25 June 2014
 
 - Started adding infrastructure for a Start Page that has a recent files list. This
